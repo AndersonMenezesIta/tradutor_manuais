@@ -1,0 +1,5 @@
+{
+  "name": "TechTrans PDF",
+  "description": "Professional AI-powered technical PDF translator preserving layout, tables, and diagrams using Gemini 2.5 Multimodal capabilities.",
+  "requestFramePermissions": []
+}
