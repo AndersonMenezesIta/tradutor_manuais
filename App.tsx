@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { BookOpen, Settings, Play, Download, StopCircle, Check } from 'lucide-react';
+import { BookOpen, Settings, Play, Download, StopCircle, Check, FileText } from 'lucide-react';
 import { AppStatus, FileData, LogEntry, ProcessedPage, TranslationConfig } from './types';
 import { SUPPORTED_LANGUAGES, TECHNICAL_DOMAINS, MOCK_LOGS_INIT } from './constants';
 import { loadPDF, renderPageToImage, generateId } from './utils/pdfHelpers';
@@ -7,6 +7,7 @@ import { translateTechnicalPage } from './services/geminiService';
 import FileUpload from './components/FileUpload';
 import LogConsole from './components/LogConsole';
 import ResultPreview from './components/ResultPreview';
+import { jsPDF } from "jspdf";
 
 const App: React.FC = () => {
   // State
@@ -129,9 +130,51 @@ const App: React.FC = () => {
     addLog(`Translation job completed successfully.`, 'success');
   };
 
-  // Mock Download
-  const handleDownload = () => {
-    // In a real app, this would use jsPDF to generate a PDF from the markdown/text
+  // Download as PDF
+  const handleDownloadPDF = () => {
+    if (processedPages.length === 0) return;
+    
+    addLog('Generating PDF...', 'info');
+    const doc = new jsPDF();
+    const lineHeight = 7;
+    const margin = 15;
+    const pageWidth = doc.internal.pageSize.width;
+    const maxLineWidth = pageWidth - (margin * 2);
+
+    processedPages.forEach((page, index) => {
+      if (index > 0) doc.addPage();
+      
+      doc.setFontSize(10);
+      doc.setTextColor(150);
+      doc.text(`Page ${page.pageNumber}`, margin, 10);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      
+      // Split text to fit page width
+      // Note: This is a basic text dump. For complex layouts, a more advanced renderer is needed.
+      const splitText = doc.splitTextToSize(page.translatedMarkdown, maxLineWidth);
+      
+      let cursorY = 20;
+      
+      // Add text line by line, adding pages if text overflows
+      for(let i = 0; i < splitText.length; i++) {
+        if (cursorY > doc.internal.pageSize.height - margin) {
+          doc.addPage();
+          cursorY = 20;
+        }
+        doc.text(splitText[i], margin, cursorY);
+        cursorY += lineHeight;
+      }
+    });
+
+    const fileName = `TRANSLATED_PDF_${fileData?.name.replace('.pdf', '') || 'doc'}.pdf`;
+    doc.save(fileName);
+    addLog(`Saved PDF to Downloads: ${fileName}`, 'success');
+  };
+
+  // Download as Markdown
+  const handleDownloadMD = () => {
     const blob = new Blob(
       [processedPages.map(p => `# Page ${p.pageNumber}\n\n${p.translatedMarkdown}`).join('\n\n---\n\n')],
       { type: 'text/markdown' }
@@ -250,13 +293,24 @@ const App: React.FC = () => {
             </div>
             
             {status === AppStatus.COMPLETED && (
-              <button
-                onClick={handleDownload}
-                className="w-full bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/50 font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Export Result
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDownloadPDF}
+                  className="flex-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/50 font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  title="Download as PDF"
+                >
+                  <Download className="w-4 h-4" />
+                  PDF
+                </button>
+                <button
+                  onClick={handleDownloadMD}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  title="Download Source Markdown"
+                >
+                  <FileText className="w-4 h-4" />
+                  MD
+                </button>
+              </div>
             )}
 
           </div>
